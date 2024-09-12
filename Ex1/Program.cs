@@ -1,44 +1,115 @@
-﻿using System;
+﻿using Ex1;
+using System;
+using System.Diagnostics;
 
 internal class Program
 {
     private static async Task Main(string[] args)
     {
-        string projectDirectory = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), @"..\..\.."));
-        string filePath = Path.Combine(projectDirectory, "Ex1List.txt");
+        string projectDirectory = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory()));
 
-        List<string> urls = new();
+        string? urlsFile = null;
+        string? archiveAdress = null;
 
-        using (var reader = new StreamReader(filePath))
+        var arguments = new Dictionary<string, string>();
+
+        for (int i = 0; i < args.Length; i++)
         {
-            try
+            switch (args[i])
             {
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
+                case "-i":
+                    if (i + 1 < args.Length)
                     {
-                        urls.Add(line);
+                        arguments["input"] = args[++i];
                     }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error reading file: {ex.Message}");
+                    else
+                    {
+                        Console.WriteLine("Error: Missing value for -i.");
+                        return;
+                    }
+                    break;
+
+                case "-o":
+                    if (i + 1 < args.Length)
+                    {
+                        arguments["output"] = args[++i];
+                    }
+                    else
+                    {
+                        Console.WriteLine("Error: Missing value for -o.");
+                        return;
+                    }
+                    break;
+
+                default:
+                    if (urlsFile == null)
+                    {
+                        urlsFile = args[i];
+                    }
+                    else if (archiveAdress == null)
+                    {
+                        archiveAdress = args[i];
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Error: Unexpected argument '{args[i]}'.");
+                        return;
+                    }
+                    break;
             }
         }
 
-        using (var client = new HttpClient())
+        if (arguments.ContainsKey("input"))
         {
-            try
+            urlsFile = arguments["input"];
+        }
+
+        if (arguments.ContainsKey("output"))
+        {
+            archiveAdress = arguments["output"];
+        }
+
+        if (args.Length == 0)
+        {
+            urlsFile = Path.Combine(projectDirectory, "urlsList.txt");
+            archiveAdress = Path.Combine(projectDirectory, "images.zip");
+
+            if (!File.Exists(urlsFile))
             {
-                foreach (var url in urls)
-                {
-                    string data = await client.GetStringAsync(url);
-                    Console.WriteLine(data);
-                }
-            }
-            catch (HttpRequestException e)
-            {
-                Console.WriteLine($"Error downloading data: {e.Message}");
+                Console.WriteLine("File urlsList.txt not found");
+                return;
             }
         }
+
+
+
+        Stopwatch stopwatchAsync = new();
+        stopwatchAsync.Start();
+        var urlsData = DownloadUrls.Run(urlsFile);
+
+        var images = DownloadImgs.Run(urlsData);
+
+        Archive.ArchiveByteArray(images, archiveAdress);
+        stopwatchAsync.Stop();
+        Console.WriteLine($"\nTotal sync time: {stopwatchAsync.ElapsedMilliseconds} ms.");
+
+        Console.WriteLine();
+
+        Stopwatch stopwatchSync = new();
+        stopwatchSync.Start();
+        var urlsDataAsync = await DownloadUrls.RunAsync(urlsFile);
+
+        var imagesAsync = await DownloadImgs.RunAsync(urlsDataAsync);
+
+        await Archive.ArchiveByteArrayAsync(imagesAsync, archiveAdress);
+        stopwatchSync.Stop();
+        Console.WriteLine($"\nTotal async time: {stopwatchSync.ElapsedMilliseconds} ms.");
+
+        Console.WriteLine();
+
+        Console.WriteLine($"Async is {(double)stopwatchAsync.ElapsedMilliseconds / stopwatchSync.ElapsedMilliseconds:F2} times faster");
+
+
+        Console.ReadKey();
     }
 }
