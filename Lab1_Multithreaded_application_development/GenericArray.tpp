@@ -1,7 +1,5 @@
 #pragma once
 
-// #include "GenericArray.h"
-
 template <typename T>
 GenericArray<T>::GenericArray(size_t n, bool flag)
 {
